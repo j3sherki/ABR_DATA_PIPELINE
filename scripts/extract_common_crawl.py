@@ -1,57 +1,59 @@
 #!/usr/bin/env python3
 """
-Extract Australian company websites from Common Crawl using Apache Spark.
-Target: 200,000+ websites with company data.
+Extract Australian company websites from Common Crawl using boto3 and warcio.
 """
 
-import sys
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, regexp_extract, lower, trim
 import boto3
 from warcio import ArchiveIterator
 import requests
 from bs4 import BeautifulSoup
+import csv
+import os
 
-def extract_company_info(html_content):
+def extract_company_info(html_content, url):
     """Extract company name and industry from HTML."""
-    soup = BeautifulSoup(html_content, 'html.parser')
-    title = soup.title.string if soup.title else ''
-    # Simple heuristics; in real scenario, use ML or better parsing
-    company_name = title.split(' - ')[0] if ' - ' in title else title
-    industry = None  # Placeholder
-    return company_name, industry
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        title = soup.title.string if soup.title else ''
+        # Simple heuristics
+        company_name = title.split(' - ')[0] if ' - ' in title else title
+        industry = None  # Placeholder for ML-based extraction
+        return company_name, industry
+    except:
+        return None, None
 
-def process_warc_record(record):
-    """Process a single WARC record."""
-    if record.rec_type == 'response':
-        url = record.rec_headers.get_header('WARC-Target-URI')
-        if url and '.au' in url:  # Australian domain
-            html = record.content_stream().read().decode('utf-8', errors='ignore')
-            company_name, industry = extract_company_info(html)
-            if company_name:
-                return (url, company_name, industry)
-    return None
+def process_warc_from_s3(bucket, key):
+    """Process a single WARC file from S3."""
+    s3 = boto3.client('s3')
+    response = s3.get_object(Bucket=bucket, Key=key)
+    records = []
+    for record in ArchiveIterator(response['Body']):
+        if record.rec_type == 'response':
+            url = record.rec_headers.get_header('WARC-Target-URI')
+            if url and '.au' in url.lower():  # Australian domain
+                content = record.content_stream.read().decode('utf-8', errors='ignore')
+                company_name, industry = extract_company_info(content, url)
+                if company_name:
+                    records.append([url, company_name, industry])
+                    if len(records) >= 1000:  # Limit for demo
+                        break
+    return records
 
 def main():
-    spark = SparkSession.builder \
-        .appName("CommonCrawlExtractor") \
-        .getOrCreate()
-
-    # Common Crawl S3 bucket
-    s3 = boto3.client('s3')
+    # Common Crawl bucket
     bucket = 'commoncrawl'
-    prefix = 'crawl-data/CC-MAIN-2023-40/segments/'  # Example path
+    # Sample WARC path (update to latest)
+    key = 'crawl-data/CC-MAIN-2024-10/segments/1707940200/warc/CC-MAIN-20240102000000-20240102010000-00000.warc.gz'  # Example
 
-    # Get list of WARC files (simplified)
-    warc_files = []  # Populate with actual paths
-
-    # For demo, use a small sample
-    rdd = spark.sparkContext.parallelize(warc_files)
-    results = rdd.map(lambda path: process_warc_record_from_s3(path)) \
-                 .filter(lambda x: x is not None) \
-                 .toDF(['website_url', 'company_name', 'industry'])
-
-    results.write.parquet('data/common_crawl_raw.parquet')
+    records = process_warc_from_s3(bucket, key)
+    
+    os.makedirs('data', exist_ok=True)
+    with open('data/common_crawl_raw.csv', 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['website_url', 'company_name', 'industry'])
+        writer.writerows(records)
+    
+    print(f"Extracted {len(records)} Australian websites.")
 
 if __name__ == '__main__':
     main()
