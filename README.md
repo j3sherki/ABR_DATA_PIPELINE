@@ -20,23 +20,17 @@ This project builds a data pipeline to collect, clean, and integrate Australian 
 - `notebooks/`: Jupyter notebooks for exploration and prototyping.
 - `tests/`: Additional tests.
 
-## Setup
-1. Install dependencies: `pip install -r requirements.txt`
-2. Set up PostgreSQL database.
-3. Configure DBT profile for PostgreSQL.
-4. Run pipeline scripts in order.
+## Pipeline Execution
+1. Set up PostgreSQL database and update credentials in scripts.
+2. Run `python scripts/extract_abr.py` and `python scripts/extract_common_crawl.py` (or use sample data).
+3. Run `python scripts/load_to_postgres.py` to load raw data.
+4. Run DBT: `cd dbt_project && dbt run && dbt test`.
+5. Query the `integrated_companies` table with examples in `sql/example_queries.sql`.
 
-## Pipeline Description
-1. Extract Australian websites from Common Crawl using Spark.
-2. Download and process ABR data.
-3. Clean and merge datasets.
-4. Use DBT for transformations and deduplication.
-5. Load into PostgreSQL.
-
-## Deliverables
-- PostgreSQL schema (sql/schema.sql)
-- DBT models with tests
-- Example queries for analysis
+## Results
+- **Data Loaded:** Sample Australian company data integrated.
+- **Queries Demonstrated:** State distribution, industry analysis, website coverage.
+- **DBT Tests:** Passed for data quality.
 
 ## GitHub Repo
 https://github.com/Mangesh1998/ABR_DATA_PIPELINE
