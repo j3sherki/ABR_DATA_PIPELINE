@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Run example queries on the integrated data.
+Run example queries on the integrated data
 """
 
 import psycopg2
