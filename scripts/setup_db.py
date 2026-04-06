@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Set up PostgreSQL database schema and roles.
+Set up PostgreSQL database schema and roles
 """
 
 import psycopg2
